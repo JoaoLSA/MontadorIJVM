@@ -1,4 +1,5 @@
 use std::fs;
+use byteorder::{LittleEndian, WriteBytesExt};
 
 struct Opcode {
   code: String,
@@ -119,6 +120,7 @@ fn main() {
     },
   ];
 
+  let mut final_program = vec![];
   let mut labels: Vec<Label> = Vec::new();
   println!("In file {}", filename);
 
@@ -127,11 +129,18 @@ fn main() {
   let mut byte_counter: usize = 1;
   for line in contents.lines() {
     let mut split = line.split_whitespace().collect::<Vec<&str>>();
+
+    //  Stores label in its table
     if !is_an_opcode(split[0], &opcodes) {
       println!("{:?}", split[0]);
       push_label(split[0], byte_counter, &mut labels);
     }
     byte_counter += split.len();
-    println!("{:?}", byte_counter);
+    
+    
   }
+  let program_size: u16 = 20 + byte_counter as u16;
+  final_program.write_u16::<LittleEndian>(program_size).unwrap();
+  final_program.write_u16::<LittleEndian>(0x0B).unwrap();
+  println!("{:?}", final_program);
 }
