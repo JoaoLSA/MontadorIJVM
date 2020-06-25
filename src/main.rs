@@ -8,9 +8,13 @@ struct Opcode {
 
 struct Label {
   name: String,
-  position: u32,
+  position: usize,
 }
 
+struct Variable {
+  name: String,
+  index: usize,
+}
 
 fn is_an_opcode(opcode: &str, opcodes: &[Opcode]) -> bool {
   for op in opcodes {
@@ -30,8 +34,30 @@ fn is_a_label(label: &str, labels: &Vec<Label>) -> bool {
   return false;
 }
 
-fn push_label(label: &str, position: usize, labels: &mut Vec<Label>) {
+fn is_a_variable(var: &str, vars: &Vec<Variable>) -> bool {
+  for v in vars {
+    if v.name == var {
+      return true;
+    }
+  }
+  return false;
+}
 
+fn push_variable(name: &str, variables: &mut Vec<Variable>, index: usize) {
+  variables.push(
+    Variable {
+      name: String::from(name),
+      index,
+  });
+}
+
+fn push_label(name: &str, position: usize, labels: &mut Vec<Label>) {
+  labels.push(
+    Label {
+      name: String::from(name),
+      position,
+    }
+  );
 }
 
 
@@ -122,11 +148,13 @@ fn main() {
 
   let mut final_program = vec![];
   let mut labels: Vec<Label> = Vec::new();
+  let mut variables: Vec<Variable> = Vec::new();
   println!("In file {}", filename);
 
   let contents = fs::read_to_string(filename)
       .expect("Something went wrong reading the file");
   let mut byte_counter: usize = 1;
+  //  Getting labels and their byte positions
   for line in contents.lines() {
     let mut split = line.split_whitespace().collect::<Vec<&str>>();
 
@@ -136,11 +164,28 @@ fn main() {
       push_label(split[0], byte_counter, &mut labels);
     }
     byte_counter += split.len();
-    
-    
   }
-  let program_size: u16 = 20 + byte_counter as u16;
-  final_program.write_u16::<LittleEndian>(program_size).unwrap();
-  final_program.write_u16::<LittleEndian>(0x0B).unwrap();
-  println!("{:?}", final_program);
+
+  // Get all variables
+  let mut vars_num = 0;
+  for line in contents.lines() {
+    let mut split = line.split_whitespace().collect::<Vec<&str>>();
+    if split.len() > 1 && !split[1].parse::<f64>().is_ok() && !is_an_opcode(split[1], &opcodes) && !is_a_label(split[1], &labels) && !is_a_variable(split[1], &variables) {
+      push_variable(split[1], &mut variables, vars_num);
+      vars_num += 1;
+    } else if  split.len() > 2 && !split[2].parse::<f64>().is_ok() && !is_an_opcode(split[2], &opcodes) && !is_a_label(split[2], &labels) && !is_a_variable(split[2], &variables){
+      push_variable(split[2], &mut variables, vars_num);
+      vars_num += 1;
+    }
+  }
+  for v in variables {
+    println!("{:?}", v.name);
+  }
+  // Writing program size
+  let program_size: u32 = 20 + byte_counter as u32;
+  final_program.write_u32::<LittleEndian>(program_size).unwrap();
+  final_program.write_u32::<LittleEndian>(0x0B).unwrap();
+  
+  // Second step(Write jump labels as Big Indian to fix bug)
+
 }
