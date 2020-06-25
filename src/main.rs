@@ -1,5 +1,5 @@
 use std::fs;
-use byteorder::{LittleEndian, WriteBytesExt};
+use byteorder::{LittleEndian, BigEndian, WriteBytesExt};
 use std::path::Path;
 use std::io::Write;
 
@@ -151,7 +151,6 @@ fn main() {
   let mut final_program = vec![];
   let mut labels: Vec<Label> = Vec::new();
   let mut variables: Vec<Variable> = Vec::new();
-  println!("In file {}", filename);
 
   let contents = fs::read_to_string(filename)
       .expect("Something went wrong reading the file");
@@ -162,7 +161,6 @@ fn main() {
 
     //  Stores label in its table
     if !is_an_opcode(split[0], &opcodes) {
-      println!("{:?}", split[0]);
       push_label(split[0], byte_counter, &mut labels);
     }
     byte_counter += split.len();
@@ -224,10 +222,12 @@ fn main() {
     if split.len() > 1 && is_a_label(split[1], &labels) {
       for l in &labels {
         if l.name == split[1] {
-          final_program.write_u32::<LittleEndian>(l.position as u32).unwrap();
+          let jump_to: i32 = byte_counter as i32 - l.position as i32;
+          final_program.write_i32::<BigEndian>(jump_to).unwrap();
         }
       }
     }
+    byte_counter += split.len();
   }
   //  Write result file
   let path = Path::new("result");
