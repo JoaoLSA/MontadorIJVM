@@ -1,5 +1,7 @@
 use std::fs;
 use byteorder::{LittleEndian, WriteBytesExt};
+use std::path::Path;
+use std::io::Write;
 
 struct Opcode {
   code: String,
@@ -178,14 +180,66 @@ fn main() {
       vars_num += 1;
     }
   }
-  for v in variables {
-    println!("{:?}", v.name);
-  }
   // Writing program size
   let program_size: u32 = 20 + byte_counter as u32;
   final_program.write_u32::<LittleEndian>(program_size).unwrap();
-  final_program.write_u32::<LittleEndian>(0x0B).unwrap();
   
+  // Initializing registers
+  let registers: [u32; 5] = [
+    0x7300, // INIT
+    0x0006, // CPP
+    0x1001, // LV
+    0x0400, // PC
+    0x1001 + vars_num as u32 // SP
+  ];
+
+  for reg in registers.iter() {
+    final_program.write_u32::<LittleEndian>(*reg).unwrap();
+  }
   // Second step(Write jump labels as Big Indian to fix bug)
+  byte_counter = 0;
+  for line in contents.lines() {
+    let mut split = line.split_whitespace().collect::<Vec<&str>>();
+    if is_an_opcode(split[0], &opcodes) {
+      for op in &opcodes {
+        if op.code == split[0] {
+          final_program.write_u32::<LittleEndian>(op.byte as u32).unwrap();
+        }
+      }
+    }
+    if split.len() > 1 && is_an_opcode(split[1], &opcodes) {
+      for op in &opcodes {
+        if op.code == split[1] {
+          final_program.write_u32::<LittleEndian>(op.byte as u32).unwrap();
+        }
+      }
+    }
+    if split.len() > 1 && is_a_variable(split[1], &variables) {
+      for var in &variables {
+        if var.name == split[1] {
+          final_program.write_u32::<LittleEndian>(var.index as u32).unwrap();
+        }
+      }
+    }
+    if split.len() > 1 && is_a_label(split[1], &labels) {
+      for l in &labels {
+        if l.name == split[1] {
+          final_program.write_u32::<LittleEndian>(l.position as u32).unwrap();
+        }
+      }
+    }
+  }
+  //  Write result file
+  let path = Path::new("result");
+  let display = path.display();
+  let mut file = match fs::File::create(&path) {
+      Err(why) => panic!("couldn't create {}: {}", display, why),
+      Ok(file) => file,
+  };
+
+  match file.write_all(&final_program) {
+    Err(why) => panic!("couldn't write to {}: {}", display, why),
+    Ok(_) => println!("successfully wrote to {}", display),
+  }
 
 }
