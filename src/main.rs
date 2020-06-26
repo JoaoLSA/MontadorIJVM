@@ -157,7 +157,7 @@ fn main() {
   let mut byte_counter: usize = 1;
   //  Getting labels and their byte positions
   for line in contents.lines() {
-    let mut split = line.split_whitespace().collect::<Vec<&str>>();
+    let split = line.split_whitespace().collect::<Vec<&str>>();
 
     //  Stores label in its table
     if !is_an_opcode(split[0], &opcodes) {
@@ -169,7 +169,7 @@ fn main() {
   // Get all variables
   let mut vars_num = 0;
   for line in contents.lines() {
-    let mut split = line.split_whitespace().collect::<Vec<&str>>();
+    let split = line.split_whitespace().collect::<Vec<&str>>();
     if split.len() > 1 && !split[1].parse::<f64>().is_ok() && !is_an_opcode(split[1], &opcodes) && !is_a_label(split[1], &labels) && !is_a_variable(split[1], &variables) {
       push_variable(split[1], &mut variables, vars_num);
       vars_num += 1;
@@ -194,10 +194,14 @@ fn main() {
   for reg in registers.iter() {
     final_program.write_u32::<LittleEndian>(*reg).unwrap();
   }
+
+  while final_program.len() < 1025 {
+    final_program.write_u32::<LittleEndian>(0).unwrap();
+  }
   // Second step(Write jump labels as Big Indian to fix bug)
   byte_counter = 0;
   for line in contents.lines() {
-    let mut split = line.split_whitespace().collect::<Vec<&str>>();
+    let split = line.split_whitespace().collect::<Vec<&str>>();
     if is_an_opcode(split[0], &opcodes) {
       for op in &opcodes {
         if op.code == split[0] {
@@ -222,6 +226,21 @@ fn main() {
     if split.len() > 1 && is_a_label(split[1], &labels) {
       for l in &labels {
         if l.name == split[1] {
+          let jump_to: i32 = l.position as i32 + 1 - byte_counter as i32;
+          println!("{:?}", jump_to);
+          final_program.write_i32::<BigEndian>(jump_to).unwrap();
+        }
+      }
+    }
+    if split.len() > 1 && split[1].parse::<u8>().is_ok() {
+      final_program.write_u32::<LittleEndian>(split[1].parse::<u32>().unwrap()).unwrap();
+    }
+    if split.len() > 2 && split[2].parse::<u32>().is_ok() {
+      final_program.write_u32::<LittleEndian>(split[2].parse::<u32>().unwrap()).unwrap();
+    }
+    if split.len() > 2 && is_a_label(split[2], &labels) {
+      for l in &labels {
+        if l.name == split[1] {
           let jump_to: i32 = byte_counter as i32 - l.position as i32;
           final_program.write_i32::<BigEndian>(jump_to).unwrap();
         }
@@ -229,14 +248,14 @@ fn main() {
     }
     byte_counter += split.len();
   }
-  //  Write result file
   let path = Path::new("result");
   let display = path.display();
+
   let mut file = match fs::File::create(&path) {
       Err(why) => panic!("couldn't create {}: {}", display, why),
       Ok(file) => file,
   };
-
+  //  Write result file
   match file.write_all(&final_program) {
     Err(why) => panic!("couldn't write to {}: {}", display, why),
     Ok(_) => println!("successfully wrote to {}", display),
